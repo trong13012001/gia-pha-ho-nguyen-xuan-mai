@@ -104,6 +104,28 @@ Mở trình duyệt và truy cập: `http://localhost:3000`
 - Người đăng ký đầu tiên sẽ tự động có quyền **admin**.
 - Các tài khoản đăng ký sau sẽ mặc định là **member**.
 
+## Xử lý lỗi khi đăng ký
+
+Sau khi cài đặt xong, nếu bạn gặp lỗi `Failed to fetch` khi đăng ký:
+
+**Nguyên nhân:** Supabase chặn các request từ domain chưa được thêm vào danh sách cho phép.
+
+**Cách khắc phục:**
+
+1. Vào [Supabase Dashboard](https://supabase.com/dashboard) → chọn Project của bạn.
+2. Vào **Authentication → URL Configuration**.
+3. Ở mục **Site URL**, điền URL chính của ứng dụng, ví dụ:
+   - Vercel: `https://giapha-os.vercel.app`
+   - Máy cá nhân: `http://localhost:3000`
+4. Ở mục **Redirect URLs**, nhấn **Add URL** và thêm:
+   - `https://giapha-os.vercel.app/**`
+   - `http://localhost:3000/**` (nếu chạy local)
+5. Nhấn **Save** và thử lại.
+
+> **Lưu ý:** Thay `giapha-os.vercel.app` bằng domain thực tế của bạn. Nếu dùng domain tùy chỉnh, hãy thêm cả domain đó vào danh sách.
+
+---
+
 ## Phân quyền người dùng (User Roles)
 
 Hệ thống có 3 cấp độ phân quyền để dễ dàng quản lý ai được phép cập nhật gia phả:
