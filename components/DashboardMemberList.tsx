@@ -126,21 +126,32 @@ export default function DashboardMemberList({
         return "parents_" + [...parents].sort().join("_");
       }
 
-      // No parents -> check spouses
-      const spouses = spousesOf.get(personId) || [];
-      if (spouses.length > 0) {
-        const allPartners = [personId, ...spouses].sort();
-        // Check if any partner has parents
-        for (const p of allPartners) {
-          const pt = parentsOf.get(p);
-          if (pt && pt.length > 0) {
-            return "parents_" + [...pt].sort().join("_");
+      // No parents -> check spouses and then check if those spouses have parents
+      // Use a small BFS to find the whole marriage cluster
+      const visited = new Set<string>([personId]);
+      const queue = [personId];
+      const cluster: string[] = [];
+
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        cluster.push(curr);
+        const pts = parentsOf.get(curr);
+        if (pts && pts.length > 0) {
+          // Found a bloodline member in the marriage cluster!
+          return "parents_" + [...pts].sort().join("_");
+        }
+
+        const sps = spousesOf.get(curr) || [];
+        for (const s of sps) {
+          if (!visited.has(s)) {
+            visited.add(s);
+            queue.push(s);
           }
         }
-        return "spouses_" + allPartners[0];
       }
 
-      return "individual_" + personId;
+      // No one in marriage cluster has parents -> group by the cluster's min ID
+      return "spouses_" + [...cluster].sort()[0];
     };
 
     // 3. Group the filtered persons into their families
@@ -403,7 +414,7 @@ export default function DashboardMemberList({
                               </div>
                             );
                           })()}
-                          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10 ${familiesMap.size > 1 ? 'pt-2' : ''}`}>
+                          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10`}>
                             {(() => {
                               // Group famPersons into couple groups strictly by spouse relationships
                               const coupleGroups: Person[][] = [];
@@ -431,19 +442,47 @@ export default function DashboardMemberList({
                                   }
                                 }
 
-                                // Sort the couple: bloodline first, then by age
-                                group.sort((a, b) => {
-                                  if (a.is_in_law !== b.is_in_law) return a.is_in_law ? 1 : -1;
-                                  return (a.birth_year || 9999) - (b.birth_year || 9999);
-                                });
+                                  // Balanced Sort: Place bloodline members in the center
+                                  // This ensures HUB -- SPOUSE links work best in a horizontal grid.
+                                  const bloodlineMembers = group.filter(m => !m.is_in_law).sort((a,b) => (a.birth_year || 0) - (b.birth_year || 0));
+                                  const inLawMembers = group.filter(m => m.is_in_law).sort((a,b) => (a.birth_year || 0) - (b.birth_year || 0));
+                                  
+                                  const balanced: Person[] = [];
+                                  if (group.length <= 2) {
+                                    balanced.push(...bloodlineMembers, ...inLawMembers);
+                                  } else {
+                                    // For 3+ people, put the main person(s) in the middle
+                                    // Example for 3: [InLaw 1, Bloodline, InLaw 2]
+                                    let bIdx = 0;
+                                    let iIdx = 0;
+                                    const slots = new Array(group.length);
+                                    
+                                    // Put bloodline in center or near center
+                                    const mid = Math.floor(group.length / 2);
+                                    slots[mid] = bloodlineMembers[bIdx++];
+                                    
+                                    // Distribute others around
+                                    let offset = 1;
+                                    while (bIdx < bloodlineMembers.length || iIdx < inLawMembers.length) {
+                                      const next = bIdx < bloodlineMembers.length ? bloodlineMembers[bIdx++] : inLawMembers[iIdx++];
+                                      if (mid + offset < group.length && !slots[mid + offset]) slots[mid + offset] = next;
+                                      else if (mid - offset >= 0 && !slots[mid - offset]) slots[mid - offset] = next;
+                                      else {
+                                        // Find first empty slot
+                                        const empty = slots.findIndex(s => !s);
+                                        if (empty !== -1) slots[empty] = next;
+                                      }
+                                      offset++;
+                                    }
+                                    balanced.push(...slots.filter(s => !!s));
+                                  }
 
-                                coupleGroups.push(group);
-                              }
-                              
+                                  coupleGroups.push(balanced);
+                                }                          
                               return coupleGroups.map((group, gIdx) => {
-                                const isCouple = group.length > 1;
-                                const colSpanClass = group.length === 2 ? 'md:col-span-2' : group.length >= 3 ? 'md:col-span-2 lg:col-span-3' : 'col-span-1';
-                                const innerGridClass = group.length === 2 ? 'md:grid-cols-2' : group.length >= 3 ? 'md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1';
+                                  const isCouple = group.length > 1;
+                                  const colSpanClass = group.length === 2 ? 'md:col-span-2' : group.length >= 3 ? 'md:col-span-2 lg:col-span-3' : 'col-span-1';
+                                  const innerGridClass = group.length === 2 ? 'grid-cols-2' : group.length >= 3 ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-1';
 
                                 return (
                                   <div key={gIdx} className={`relative ${colSpanClass}`}>
