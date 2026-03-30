@@ -3,7 +3,7 @@
 import { Person, Relationship } from "@/types";
 import { buildAdjacencyLists, getFilteredTreeData } from "@/utils/treeHelpers";
 import * as d3 from "d3";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AVATAR_VERSION } from "./DefaultAvatar";
 
 export interface BubbleMapTreeProps {
@@ -35,6 +35,7 @@ export default function BubbleMapTree({
 }: BubbleMapTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const [error, setError] = useState<Error | null>(null);
   // const { showAvatar } = useDashboard();
 
   const adj = useMemo(
@@ -108,9 +109,10 @@ export default function BubbleMapTree({
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
-
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
+    
+    try {
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
 
     // Pin root nodes to the center
     const rootNodes = nodes.filter((n) => n.isRoot);
@@ -312,10 +314,24 @@ export default function BubbleMapTree({
       node.attr("transform", (d) => `translate(${d.x},${d.y})`);
     });
 
-    return () => {
-      simulation.stop();
-    };
+      return () => {
+        simulation.stop();
+      };
+    } catch (err) {
+      console.error("D3 rendering error:", err);
+      setError(err instanceof Error ? err : new Error("Unknown error"));
+    }
   }, [nodes, links]);
+
+  if (error) {
+    return (
+      <div className="absolute inset-0 overflow-hidden bg-stone-50 rounded-2xl border border-stone-200/60 shadow-inner flex items-center justify-center p-4 text-center">
+        <span className="text-stone-500">
+          Tính năng này không được hỗ trợ trên trình duyệt của bạn ({error.message}). Vui lòng cập nhật hoặc sử dụng trình duyệt khác.
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-stone-50 rounded-2xl border border-stone-200/60 shadow-inner">
