@@ -43,8 +43,8 @@ export default function LoginPage() {
         resolver: zodResolver(authFormSchema),
         defaultValues: {
             mode: "login",
-            email: "",
-            password: "",
+            email: "tronga36192@gmail.com",
+            password: "Trong13012001@",
             confirmPassword: "",
         },
     });
