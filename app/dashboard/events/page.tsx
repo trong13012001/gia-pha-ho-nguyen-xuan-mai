@@ -1,28 +1,22 @@
 import { DashboardProvider } from "@/components/DashboardContext";
 import EventsList from "@/components/EventsList";
 import MemberDetailModal from "@/components/MemberDetailModal";
-import { getSupabase } from "@/utils/supabase/queries";
+import {
+  listCustomEventsServer,
+  listPersonsServer,
+} from "@/services/supabase/server.service";
 
 export const metadata = {
   title: "Sự kiện gia phả",
 };
 
 export default async function EventsPage() {
-  const supabase = await getSupabase();
-
-  const [personsRes, customEventsRes] = await Promise.all([
-    supabase
-      .from("persons")
-      .select(
-        "id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased, avatar_url",
-      ),
-    supabase
-      .from("custom_events")
-      .select("id, name, content, event_date, location, created_by"),
+  const [persons, customEvents] = await Promise.all([
+    listPersonsServer(
+      "id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased, avatar_url",
+    ),
+    listCustomEventsServer(),
   ]);
-
-  const persons = personsRes.data || [];
-  const customEvents = customEventsRes.data || [];
 
   return (
     <DashboardProvider>

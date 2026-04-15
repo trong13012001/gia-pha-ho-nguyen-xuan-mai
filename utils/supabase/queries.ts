@@ -1,4 +1,4 @@
-import { Profile } from "@/types";
+import { getProfileByIdServer } from "@/services/supabase/server.service";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { cache } from "react";
@@ -26,14 +26,7 @@ export const getProfile = cache(async (userId?: string) => {
     id = user.id;
   }
 
-  const supabase = await getSupabase();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  return profile as Profile | null;
+  return getProfileByIdServer(id);
 });
 
 export const getIsAdmin = cache(async () => {

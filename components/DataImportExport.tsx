@@ -1,10 +1,10 @@
 "use client";
 
 import { exportData, importData } from "@/app/actions/data";
-import { Person } from "@/types";
+import { usePersonSelectorQuery } from "@/hooks/queries/usePersonsQuery";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, Download, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import PersonSelector from "./PersonSelector";
 
 export default function DataImportExport() {
@@ -19,25 +19,8 @@ export default function DataImportExport() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const [persons, setPersons] = useState<Person[]>([]);
   const [exportRootId, setExportRootId] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchPersons() {
-      try {
-        const { createClient } = await import("@/utils/supabase/client");
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("persons")
-          .select("id, full_name, birth_year, gender, avatar_url, generation")
-          .order("birth_year", { ascending: true, nullsFirst: false });
-        if (data) setPersons(data as Person[]);
-      } catch (err) {
-        console.error("Error fetching persons:", err);
-      }
-    }
-    fetchPersons();
-  }, []);
+  const { data: persons = [] } = usePersonSelectorQuery();
 
   const handleExport = async (format: "json" | "gedcom" | "csv") => {
     try {
@@ -53,7 +36,6 @@ export default function DataImportExport() {
 
       if (format === "csv") {
         const { exportToCsvZip } = await import("@/utils/csv");
-        // @ts-expect-error: BackupPayload relationships type mismatch with Partial<Relationship>
         const zipBlob = await exportToCsvZip(data);
         const url = URL.createObjectURL(zipBlob);
         const a = document.createElement("a");

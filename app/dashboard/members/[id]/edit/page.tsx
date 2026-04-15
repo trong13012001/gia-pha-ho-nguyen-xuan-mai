@@ -1,5 +1,9 @@
 import MemberForm from "@/components/MemberForm";
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import {
+  getPersonByIdServer,
+  getPersonPrivateDetailsByIdServer,
+} from "@/services/supabase/server.service";
+import { getProfile } from "@/utils/supabase/queries";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -29,31 +33,18 @@ export default async function EditMemberPage({ params }: PageProps) {
     );
   }
 
-  const supabase = await getSupabase();
-
-  // Fetch Public Data
-  const { data: person, error } = await supabase
-    .from("persons")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error || !person) {
+  const person = await getPersonByIdServer(id);
+  if (!person) {
     notFound();
   }
 
   // Fetch Private Data
   let privateData = null;
   if (isAdmin) {
-    const { data } = await supabase
-      .from("person_details_private")
-      .select("*")
-      .eq("person_id", id)  
-      .single();
-    privateData = data;
+    privateData = await getPersonPrivateDetailsByIdServer(id);
   }
 
-  const initialData = isAdmin  ? { ...person, ...privateData }  : { ...person };
+  const initialData = isAdmin ? { ...person, ...privateData } : { ...person };
 
   return (
     <div className="flex-1 w-full relative flex flex-col pb-8">

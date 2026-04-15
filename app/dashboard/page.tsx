@@ -1,6 +1,10 @@
 import { getTodayLunar } from "@/utils/dateHelpers";
+import {
+  listCustomEventsServer,
+  listPersonsServer,
+} from "@/services/supabase/server.service";
 import { computeEvents } from "@/utils/eventHelpers";
-import { getIsAdmin, getSupabase } from "@/utils/supabase/queries";
+import { getIsAdmin } from "@/utils/supabase/queries";
 import {
   ArrowRight,
   BarChart2,
@@ -39,18 +43,14 @@ const eventTypeConfig = {
 
 export default async function DashboardLaunchpad() {
   const isAdmin = await getIsAdmin();
-  const supabase = await getSupabase();
 
   /* ── Fetch events data ────────────────────────────────────────── */
-  const { data: persons } = await supabase
-    .from("persons")
-    .select(
+  const [persons, customEvents] = await Promise.all([
+    listPersonsServer(
       "id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased",
-    );
-
-  const { data: customEvents } = await supabase
-    .from("custom_events")
-    .select("id, name, content, event_date, location, created_by");
+    ),
+    listCustomEventsServer(),
+  ]);
 
   const allEvents = computeEvents(persons ?? [], customEvents ?? []);
   const upcomingEvents = allEvents.filter(

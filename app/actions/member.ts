@@ -1,12 +1,16 @@
 "use server";
 
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import { getProfile } from "@/utils/supabase/queries";
+import {
+  deletePersonByIdServer,
+  getPersonByIdServer,
+  hasAnyRelationshipsForPersonServer,
+} from "@/services/supabase/server.service";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 export async function deleteMemberProfile(memberId: string) {
   const profile = await getProfile();
-  const supabase = await getSupabase();
 
   if (profile?.role !== "admin" && profile?.role !== "editor") {
     return {
@@ -14,19 +18,21 @@ export async function deleteMemberProfile(memberId: string) {
     };
   }
 
-  // 2. Check for existing relationships
-  const { data: relationships, error: relationshipError } = await supabase
-    .from("relationships")
-    .select("id")
-    .or(`person_a.eq.${memberId},person_b.eq.${memberId}`)
-    .limit(1);
+  try {
+    await getPersonByIdServer(memberId);
+  } catch {
+    return { error: "Thành viên không tồn tại." };
+  }
 
-  if (relationshipError) {
-    console.error("Error checking relationships:", relationshipError);
+  let hasRelationships = false;
+  try {
+    hasRelationships = await hasAnyRelationshipsForPersonServer(memberId);
+  } catch (error) {
+    console.error("Error checking relationships:", error);
     return { error: "Lỗi kiểm tra mối quan hệ gia đình." };
   }
 
-  if (relationships && relationships.length > 0) {
+  if (hasRelationships) {
     return {
       error:
         "Không thể xoá. Vui lòng xoá hết các mối quan hệ gia đình của người này trước.",
@@ -34,13 +40,10 @@ export async function deleteMemberProfile(memberId: string) {
   }
 
   // 3. Delete the member
-  const { error: deleteError } = await supabase
-    .from("persons")
-    .delete()
-    .eq("id", memberId);
-
-  if (deleteError) {
-    console.error("Error deleting person:", deleteError);
+  try {
+    await deletePersonByIdServer(memberId);
+  } catch (error) {
+    console.error("Error deleting person:", error);
     return { error: "Đã xảy ra lỗi khi xoá hồ sơ." };
   }
 

@@ -1,6 +1,7 @@
 import AdminUserList from "@/components/AdminUserList";
+import { getAdminUsersServer } from "@/services/supabase/server.service";
 import { AdminUserData } from "@/types";
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import { getProfile } from "@/utils/supabase/queries";
 import { redirect } from "next/navigation";
 
 export default async function AdminUsersPage() {
@@ -11,16 +12,12 @@ export default async function AdminUsersPage() {
     redirect("/dashboard");
   }
 
-  const supabase = await getSupabase();
-
-  // Fetch users via RPC
-  const { data: users, error } = await supabase.rpc("get_admin_users");
-
-  if (error) {
+  let users: AdminUserData[] = [];
+  try {
+    users = await getAdminUsersServer();
+  } catch (error) {
     console.error("Error fetching users:", error);
   }
-
-  const typedUsers = (users as AdminUserData[]) || [];
 
   return (
     <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col pt-8 relative w-full">
@@ -37,7 +34,7 @@ export default async function AdminUsersPage() {
             </p>
           </div>
         </div>
-        <AdminUserList initialUsers={typedUsers} currentUserId={profile.id} />
+        <AdminUserList initialUsers={users} currentUserId={profile.id} />
       </div>
     </main>
   );

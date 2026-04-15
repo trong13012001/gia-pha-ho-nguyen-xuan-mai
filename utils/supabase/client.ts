@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { Database } from "@/types/database.types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
@@ -19,7 +20,7 @@ export const createClient = () => {
           error: new Error("Missing Supabase configuration"),
         }),
       },
-    } as unknown as SupabaseClient;
+    } as unknown as SupabaseClient<Database>;
   }
-  return createBrowserClient(supabaseUrl, supabaseKey);
+  return createBrowserClient<Database>(supabaseUrl, supabaseKey);
 };

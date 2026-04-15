@@ -70,3 +70,5 @@ export interface PersonWithDetails extends Person {
   children?: Person[];
   parents?: Person[];
 }
+
+export type { Database } from "./database.types";

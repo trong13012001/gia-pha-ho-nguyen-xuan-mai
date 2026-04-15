@@ -1,7 +1,7 @@
 "use client";
 
 import { Person, Relationship } from "@/types";
-import { createClient } from "@/utils/supabase/client";
+import { useBulkUpdatePersonsMutation } from "@/hooks/mutations/usePersonMutations";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
@@ -269,14 +269,13 @@ export default function LineageManager({
   persons,
   relationships,
 }: LineageManagerProps) {
-  const supabase = createClient();
-
   const [updates, setUpdates] = useState<ComputedUpdate[] | null>(null);
   const [computing, setComputing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const bulkUpdatePersonsMutation = useBulkUpdatePersonsMutation();
 
   const handleCompute = () => {
     setComputing(true);
@@ -340,18 +339,15 @@ export default function LineageManager({
       const CHUNK = 20;
       for (let i = 0; i < changedOnly.length; i += CHUNK) {
         const chunk = changedOnly.slice(i, i + CHUNK);
-        // Update each person individually (Supabase doesn't support bulk upsert with different values easily)
-        await Promise.all(
-          chunk.map((u) =>
-            supabase
-              .from("persons")
-              .update({
+        await bulkUpdatePersonsMutation.mutateAsync(
+          chunk.map((u) => ({
+            id: u.id,
+            payload: {
                 generation: u.new_generation,
                 birth_order: u.new_birth_order,
                 is_in_law: u.new_is_in_law,
-              })
-              .eq("id", u.id),
-          ),
+            },
+          })),
         );
       }
       setApplied(true);

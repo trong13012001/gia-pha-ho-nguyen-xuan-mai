@@ -1,17 +1,18 @@
 import FamilyStats from "@/components/FamilyStats";
-import { getSupabase } from "@/utils/supabase/queries";
+import {
+  listPersonsServer,
+  listRelationshipsServer,
+} from "@/services/supabase/server.service";
 
 export const metadata = {
   title: "Thống kê gia phả",
 };
 
 export default async function StatsPage() {
-  const supabase = await getSupabase();
-
-  const { data: persons } = await supabase.from("persons").select("*");
-  const { data: relationships } = await supabase
-    .from("relationships")
-    .select("*");
+  const [persons, relationships] = await Promise.all([
+    listPersonsServer(),
+    listRelationshipsServer(),
+  ]);
 
   return (
     <div className="flex-1 w-full relative flex flex-col pb-12">

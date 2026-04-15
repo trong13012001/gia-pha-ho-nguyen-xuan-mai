@@ -2,12 +2,15 @@
 
 import MemberDetailContent from "@/components/MemberDetailContent";
 import MemberForm from "@/components/MemberForm";
-import { Person } from "@/types";
+import {
+  usePersonDetailQuery,
+  usePersonPrivateDetailQuery,
+} from "@/hooks/queries/usePersonsQuery";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, ArrowLeft, Edit2, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useDashboard } from "./DashboardContext";
 import { useUser } from "./UserProvider";
 
@@ -18,64 +21,27 @@ export default function MemberDetailModal() {
     showCreateMember,
     setShowCreateMember,
   } = useDashboard();
-  const { isAdmin, isEditor: canEdit, supabase } = useUser();
+  const { isAdmin, isEditor: canEdit } = useUser();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const {
+    data: personData,
+    isLoading: loading,
+    error,
+    refetch: refetchPersonDetail,
+  } = usePersonDetailQuery(memberId ?? "");
+  const { data: privateDataQuery, refetch: refetchPrivateDetail } =
+    usePersonPrivateDetailQuery(memberId ?? "", Boolean(memberId) && isAdmin);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [person, setPerson] = useState<Person | null>(null);
-  const [privateData, setPrivateData] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const person = personData ?? null;
+  const privateData = (privateDataQuery ?? null) as Record<string, unknown> | null;
 
   const closeModal = () => {
     setMemberModalId(null);
     setShowCreateMember(false);
     setIsEditing(false);
   };
-
-  const fetchData = useCallback(
-    async (id: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        // 1. Fetch Person Public Data
-        const { data: personData, error: personError } = await supabase
-          .from("persons")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (personError || !personData) {
-          throw new Error("Không thể tải thông tin thành viên.");
-        }
-        setPerson(personData);
-
-        // 2. Fetch Private Data if Admin
-        if (isAdmin) {
-          const { data: privData } = await supabase
-            .from("person_details_private")
-            .select("*")
-            .eq("person_id", id)
-            .single();
-          setPrivateData(privData || {});
-        } else {
-          setPrivateData(null);
-        }
-      } catch (err) {
-        console.error("Error fetching member details:", err);
-        // @ts-expect-error - err is caught as unknown, but we check for message
-        setError(err?.message || "Đã xảy ra lỗi hệ thống.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [isAdmin, supabase],
-  );
 
   // Sync state with URL parameter or create mode
   useEffect(() => {
@@ -84,19 +50,12 @@ export default function MemberDetailModal() {
     if (memberId) {
       setIsOpen(true);
       setIsEditing(false); // always start on detail view when opening
-      fetchData(memberId);
     } else if (showCreateMember) {
       setIsOpen(true);
       setIsEditing(false);
-      setPerson(null);
-      setPrivateData(null);
-      setError(null);
     } else {
       setIsOpen(false);
       timeoutId = setTimeout(() => {
-        setPerson(null);
-        setPrivateData(null);
-        setError(null);
         setIsEditing(false);
       }, 300);
     }
@@ -104,7 +63,7 @@ export default function MemberDetailModal() {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [memberId, showCreateMember, fetchData]);
+  }, [memberId, showCreateMember]);
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
@@ -122,9 +81,9 @@ export default function MemberDetailModal() {
   const handleEditSuccess = (savedPersonId: string) => {
     // Clear stale data first so the loading state is shown while refetching
     setIsEditing(false);
-    setPerson(null);
-    setPrivateData(null);
-    fetchData(savedPersonId);
+    setMemberModalId(savedPersonId);
+    refetchPersonDetail();
+    refetchPrivateDetail();
     // Revalidate Next.js server component cache so the dashboard list/members updates
     router.refresh();
   };
@@ -242,7 +201,11 @@ export default function MemberDetailModal() {
                   <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2 shadow-inner">
                     <AlertCircle className="size-8" />
                   </div>
-                  <p className="text-red-600 font-medium text-lg">{error}</p>
+                  <p className="text-red-600 font-medium text-lg">
+                    {error instanceof Error
+                      ? error.message
+                      : "Không thể tải thông tin thành viên."}
+                  </p>
                   <button
                     onClick={closeModal}
                     className="mt-2 px-6 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-full transition-colors"

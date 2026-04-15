@@ -1,5 +1,9 @@
 import LineageManager from "@/components/LineageManager";
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import {
+  listPersonsServer,
+  listRelationshipsServer,
+} from "@/services/supabase/server.service";
+import { getProfile } from "@/utils/supabase/queries";
 import { redirect } from "next/navigation";
 
 export default async function LineagePage() {
@@ -9,18 +13,10 @@ export default async function LineagePage() {
     redirect("/dashboard");
   }
 
-  const supabase = await getSupabase();
-
-  const { data: personsData } = await supabase
-    .from("persons")
-    .select("*")
-    .order("birth_year", { ascending: true, nullsFirst: false });
-
-  const { data: relsData } = await supabase.from("relationships").select("*");
-
-  // Identify "roots" - people with no parents
-  const persons = personsData || [];
-  const relationships = relsData || [];
+  const [persons, relationships] = await Promise.all([
+    listPersonsServer(),
+    listRelationshipsServer(),
+  ]);
 
   return (
     <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col pt-8 relative w-full">

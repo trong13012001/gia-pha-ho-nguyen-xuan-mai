@@ -1,6 +1,7 @@
 "use client";
 
 import { DashboardContext, useDashboard } from "@/components/DashboardContext";
+import { Database } from "@/types/database.types";
 import { Person, RelationshipType } from "@/types";
 import { formatDisplayDate } from "@/utils/dateHelpers";
 import { getAvatarBg } from "@/utils/styleHelprs";
@@ -33,6 +34,23 @@ interface EnrichedRelationship {
   note: string | null;
 }
 
+interface RelationshipWithTarget {
+  id: string;
+  type: RelationshipType;
+  note: string | null;
+  target: Person;
+}
+
+type RelationshipRow = Database["public"]["Tables"]["relationships"]["Row"];
+type RelationshipInsert = Database["public"]["Tables"]["relationships"]["Insert"];
+type PersonInsert = Database["public"]["Tables"]["persons"]["Insert"];
+type PersonUpdate = Database["public"]["Tables"]["persons"]["Update"];
+
+interface MarriageWithPersons extends RelationshipRow {
+  person_a_data: Person | null;
+  person_b_data: Person | null;
+}
+
 export default function RelationshipManager({
   person,
   isAdmin,
@@ -40,6 +58,23 @@ export default function RelationshipManager({
   onStatsLoaded,
 }: RelationshipManagerProps) {
   const supabase = createClient();
+  const relationshipsTable = supabase.from("relationships") as unknown as {
+    insert: (
+      values: RelationshipInsert,
+    ) => Promise<{ error: { message: string } | null }>;
+  };
+  const personsTable = supabase.from("persons") as unknown as {
+    insert: (
+      values: PersonInsert,
+    ) => {
+      select: (query: string) => {
+        single: () => Promise<{ data: Pick<Person, "id"> | null; error: { message: string } | null }>;
+      };
+    };
+    update: (
+      values: PersonUpdate,
+    ) => { eq: (column: "id", value: string) => Promise<{ error: { message: string } | null }> };
+  };
   const dashboardContext = useContext(DashboardContext);
   const { setMemberModalId } = useDashboard();
   const router = useRouter();
@@ -119,11 +154,13 @@ export default function RelationshipManager({
         .eq("person_b", personId);
 
       if (errA || errB) throw errA || errB;
+      const relsAData = (relsA ?? []) as unknown as RelationshipWithTarget[];
+      const relsBData = (relsB ?? []) as unknown as RelationshipWithTarget[];
 
       const formattedRels: EnrichedRelationship[] = [];
 
       // Process Rels where I am Person A
-      relsA?.forEach((r) => {
+      relsAData.forEach((r) => {
         let direction: "parent" | "child" | "spouse" = "spouse";
         if (r.type === "marriage") direction = "spouse";
         else if (r.type === "biological_child" || r.type === "adopted_child")
@@ -139,7 +176,7 @@ export default function RelationshipManager({
       });
 
       // Process Rels where I am Person B
-      relsB?.forEach((r) => {
+      relsBData.forEach((r) => {
         let direction: "parent" | "child" | "spouse" = "spouse";
         if (r.type === "marriage") direction = "spouse";
         else if (r.type === "biological_child" || r.type === "adopted_child")
@@ -170,8 +207,10 @@ export default function RelationshipManager({
             `person_a.in.(${childrenIds.join(",")}),person_b.in.(${childrenIds.join(",")})`,
           );
 
-        if (childrenMarriages) {
-          childrenMarriages.forEach((m) => {
+        const childrenMarriagesData =
+          (childrenMarriages ?? []) as unknown as MarriageWithPersons[];
+        if (childrenMarriagesData.length > 0) {
+          childrenMarriagesData.forEach((m) => {
             const isAChild = childrenIds.includes(m.person_a);
             const childPerson = isAChild ? m.person_a_data : m.person_b_data;
             const spousePerson = isAChild ? m.person_b_data : m.person_a_data;
@@ -231,7 +270,12 @@ export default function RelationshipManager({
             .in("type", ["biological_child", "adopted_child"])
             .in("person_a", childrenIds);
 
-          if (grandchildrenData) {
+          const grandchildrenRows =
+            (grandchildrenData ?? []) as unknown as Pick<
+              RelationshipRow,
+              "id" | "person_a"
+            >[];
+          if (grandchildrenRows.length > 0) {
             const maleChildrenIds = formattedRels
               .filter(
                 (r) =>
@@ -245,10 +289,10 @@ export default function RelationshipManager({
               )
               .map((r) => r.targetPerson.id);
 
-            paternalGrandchildren = grandchildrenData.filter((g) =>
+            paternalGrandchildren = grandchildrenRows.filter((g) =>
               maleChildrenIds.includes(g.person_a),
             ).length;
-            maternalGrandchildren = grandchildrenData.filter((g) =>
+            maternalGrandchildren = grandchildrenRows.filter((g) =>
               femaleChildrenIds.includes(g.person_a),
             ).length;
           }
@@ -347,12 +391,13 @@ export default function RelationshipManager({
       if (newRelDirection === "spouse") type = "marriage";
       else if (newRelType === "adopted_child") type = "adopted_child";
 
-      const { error } = await supabase.from("relationships").insert({
+      const relationshipPayload: RelationshipInsert = {
         person_a: personA,
         person_b: personB,
         type: type,
-        note: newRelNote ? newRelNote : null,
-      });
+        note: newRelNote || null,
+      };
+      const { error } = await relationshipsTable.insert(relationshipPayload);
 
       if (error) throw error;
 
@@ -363,14 +408,19 @@ export default function RelationshipManager({
           .select("generation, is_in_law")
           .eq("id", selectedTargetId)
           .single();
+        const targetPersonData = (targetPerson ?? null) as Pick<
+          Person,
+          "generation" | "is_in_law"
+        > | null;
 
         if (
-          targetPerson &&
-          (targetPerson.generation == null || targetPerson.is_in_law == null)
+          targetPersonData &&
+          (targetPersonData.generation == null ||
+            targetPersonData.is_in_law == null)
         ) {
           const updates: { generation?: number; is_in_law?: boolean } = {};
 
-          if (targetPerson.generation == null && person.generation != null) {
+          if (targetPersonData.generation == null && person.generation != null) {
             if (newRelDirection === "child")
               updates.generation = person.generation + 1;
             else if (newRelDirection === "parent")
@@ -379,7 +429,7 @@ export default function RelationshipManager({
               updates.generation = person.generation;
           }
 
-          if (targetPerson.is_in_law == null) {
+          if (targetPersonData.is_in_law == null) {
             if (newRelDirection === "child" || newRelDirection === "parent")
               updates.is_in_law = false;
             else if (newRelDirection === "spouse")
@@ -387,9 +437,8 @@ export default function RelationshipManager({
           }
 
           if (Object.keys(updates).length > 0) {
-            await supabase
-              .from("persons")
-              .update(updates)
+            await personsTable
+              .update(updates as PersonUpdate)
               .eq("id", selectedTargetId);
           }
         }
@@ -456,8 +505,7 @@ export default function RelationshipManager({
           if (!isNaN(order)) personPayload.birth_order = order;
         }
 
-        const { data: newPersonData, error: insertError } = await supabase
-          .from("persons")
+        const { data: newPersonData, error: insertError } = await personsTable
           .insert(personPayload)
           .select("id")
           .single();
@@ -470,19 +518,21 @@ export default function RelationshipManager({
         const newChildId = newPersonData.id;
 
         // 2. Insert Relationship to Main Person (parent)
-        await supabase.from("relationships").insert({
+        const mainParentRelationship: RelationshipInsert = {
           person_a: personId,
           person_b: newChildId,
           type: "biological_child",
-        });
+        };
+        await relationshipsTable.insert(mainParentRelationship);
 
         // 3. Insert Relationship to Second Parent (spouse), if selected
         if (selectedSpouseId && selectedSpouseId !== "unknown") {
-          await supabase.from("relationships").insert({
+          const secondParentRelationship: RelationshipInsert = {
             person_a: selectedSpouseId,
             person_b: newChildId,
             type: "biological_child",
-          });
+          };
+          await relationshipsTable.insert(secondParentRelationship);
         }
 
         successCount++;
@@ -560,8 +610,7 @@ export default function RelationshipManager({
       }
 
       // 1. Insert Person
-      const { data: newPersonData, error: insertError } = await supabase
-        .from("persons")
+      const { data: newPersonData, error: insertError } = await personsTable
         .insert(personPayload)
         .select("id")
         .single();
@@ -571,12 +620,15 @@ export default function RelationshipManager({
       const newSpouseId = newPersonData.id;
 
       // 2. Insert Marriage Relationship
-      const { error: relError } = await supabase.from("relationships").insert({
+      const spouseRelationshipPayload: RelationshipInsert = {
         person_a: personId,
         person_b: newSpouseId,
         type: "marriage",
         note: newSpouseNote.trim() || null,
-      });
+      };
+      const { error: relError } = await relationshipsTable.insert(
+        spouseRelationshipPayload,
+      );
 
       if (relError) throw relError;
 

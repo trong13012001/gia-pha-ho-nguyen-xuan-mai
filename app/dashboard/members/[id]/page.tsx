@@ -1,44 +1,63 @@
+"use client";
+
 import DeleteMemberButton from "@/components/DeleteMemberButton";
 import MemberDetailContent from "@/components/MemberDetailContent";
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import { useUser } from "@/components/UserProvider";
+import {
+  usePersonDetailQuery,
+  usePersonPrivateDetailQuery,
+} from "@/hooks/queries/usePersonsQuery";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
+export default function MemberDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? "";
+  const { isAdmin, isEditor } = useUser();
+  const canEdit = isAdmin || isEditor;
 
-export default async function MemberDetailPage({ params }: PageProps) {
-  const { id } = await params;
+  const {
+    data: person,
+    isLoading: isPersonLoading,
+    error: personError,
+  } = usePersonDetailQuery(id);
+  const { data: privateDataQuery } = usePersonPrivateDetailQuery(
+    id,
+    Boolean(id) && isAdmin,
+  );
+  const privateData = (privateDataQuery ?? null) as Record<string, unknown> | null;
 
-  const profile = await getProfile();
-
-  const isAdmin = profile?.role === "admin";
-  const canEdit = profile?.role === "admin" || profile?.role === "editor";
-
-  const supabase = await getSupabase();
-
-  // Fetch Person Public Data
-  const { data: person, error } = await supabase
-    .from("persons")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error || !person) {
-    notFound();
+  if (isPersonLoading) {
+    return (
+      <div className="flex-1 w-full flex items-center justify-center py-16">
+        <div className="size-10 border-4 border-amber-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
-  // Fetch Private Data if Admin
-  let privateData = null;
-  if (isAdmin) {
-    const { data } = await supabase
-      .from("person_details_private")
-      .select("*")
-      .eq("person_id", id)
-      .single();
-    privateData = data;
+  if (personError || !person) {
+    return (
+      <div className="flex-1 w-full relative flex flex-col pb-8">
+        <div className="w-full relative z-20 py-4 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto flex items-center gap-3">
+          <Link
+            href="/dashboard/members"
+            className="p-2 -ml-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-colors"
+            title="Quay lại danh sách"
+          >
+            <ArrowLeft className="size-5" />
+          </Link>
+          <h1 className="title">Chi Tiết Thành Viên</h1>
+        </div>
+        <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 w-full flex-1">
+          <div className="bg-white/60 rounded-2xl shadow-sm border border-stone-200/60 overflow-hidden p-8 text-center text-stone-600">
+            {personError instanceof Error
+              ? personError.message
+              : "Không thể tải thông tin thành viên."}
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (

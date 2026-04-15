@@ -1,6 +1,7 @@
 "use server";
 
 import { Relationship } from "@/types";
+import { Database } from "@/types/database.types";
 import { getIsAdmin, getSupabase } from "@/utils/supabase/queries";
 import { revalidatePath } from "next/cache";
 
@@ -38,7 +39,7 @@ interface PersonExport {
 
 interface RelationshipExport {
   id?: string;
-  type: string;
+  type: Relationship["type"];
   person_a: string;
   person_b: string;
   note?: string | null;
@@ -71,12 +72,18 @@ interface BackupPayload {
   custom_events?: CustomEventExport[];
 }
 
+type PersonInsert = Database["public"]["Tables"]["persons"]["Insert"];
+type RelationshipInsert = Database["public"]["Tables"]["relationships"]["Insert"];
+type PersonPrivateDetailsInsert =
+  Database["public"]["Tables"]["person_details_private"]["Insert"];
+type CustomEventInsert = Database["public"]["Tables"]["custom_events"]["Insert"];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 // Các field được phép insert vào bảng persons (loại bỏ created_at/updated_at)
 function sanitizePerson(
   p: PersonExport,
-): Omit<PersonExport, "created_at" | "updated_at"> {
+): PersonInsert {
   return {
     id: p.id,
     full_name: p.full_name,
@@ -102,7 +109,7 @@ function sanitizePerson(
 
 function sanitizeRelationship(
   r: RelationshipExport,
-): Omit<RelationshipExport, "id" | "created_at" | "updated_at"> {
+): RelationshipInsert {
   return {
     type: r.type,
     person_a: r.person_a,
@@ -113,7 +120,7 @@ function sanitizeRelationship(
 
 function sanitizeCustomEvent(
   e: CustomEventExport,
-): Omit<CustomEventExport, "created_by"> {
+): CustomEventInsert {
   return {
     id: e.id,
     name: e.name,
@@ -134,7 +141,6 @@ export async function exportData(
   }
 
   const supabase = await getSupabase();
-
   // Fetch ALL persons and relationships first to perform traversal in memory.
   // This is safe since typical family trees are < 10,000 nodes, easily fitting in memory.
   const { data: allPersons, error: personsError } = await supabase
@@ -260,6 +266,26 @@ export async function importData(
   }
 
   const supabase = await getSupabase();
+  const personsTable = supabase.from("persons") as unknown as {
+    insert: (values: PersonInsert[]) => Promise<{ error: { message: string } | null }>;
+  };
+  const relationshipsTable = supabase.from("relationships") as unknown as {
+    insert: (
+      values: RelationshipInsert[],
+    ) => Promise<{ error: { message: string } | null }>;
+  };
+  const privateDetailsTable = supabase.from(
+    "person_details_private",
+  ) as unknown as {
+    insert: (
+      values: PersonPrivateDetailsInsert[],
+    ) => Promise<{ error: { message: string } | null }>;
+  };
+  const customEventsTable = supabase.from("custom_events") as unknown as {
+    insert: (
+      values: CustomEventInsert[],
+    ) => Promise<{ error: { message: string } | null }>;
+  };
 
   if (!importPayload?.persons || !importPayload?.relationships) {
     return { error: "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại file JSON." };
@@ -314,11 +340,11 @@ export async function importData(
 
   // 5. Insert persons (sanitized — chỉ giữ các field schema hiện tại)
   const CHUNK = 200;
-  const persons = importPayload.persons.map(sanitizePerson);
+  const persons: PersonInsert[] = importPayload.persons.map(sanitizePerson);
 
   for (let i = 0; i < persons.length; i += CHUNK) {
-    const chunk = persons.slice(i, i + CHUNK);
-    const { error } = await supabase.from("persons").insert(chunk);
+    const chunk: PersonInsert[] = persons.slice(i, i + CHUNK);
+    const { error } = await personsTable.insert(chunk);
     if (error)
       return {
         error: `Lỗi khi import persons (chunk ${i / CHUNK + 1}): ${error.message}`,
@@ -327,13 +353,13 @@ export async function importData(
 
   // 6. Insert relationships (stripped of id/created_at to avoid conflicts)
   // Filter out self-relationships to avoid "no_self_relationship" constraint violation
-  const relationships = importPayload.relationships
+  const relationships: RelationshipInsert[] = importPayload.relationships
     .filter((r) => r.person_a !== r.person_b)
     .map(sanitizeRelationship);
 
   for (let i = 0; i < relationships.length; i += CHUNK) {
     const chunk = relationships.slice(i, i + CHUNK);
-    const { error } = await supabase.from("relationships").insert(chunk);
+    const { error } = await relationshipsTable.insert(chunk);
     if (error)
       return {
         error: `Lỗi khi import relationships (chunk ${i / CHUNK + 1}): ${error.message}`,
@@ -345,10 +371,8 @@ export async function importData(
   const privateDetails = importPayload.person_details_private ?? [];
   if (privateDetails.length > 0) {
     for (let i = 0; i < privateDetails.length; i += CHUNK) {
-      const chunk = privateDetails.slice(i, i + CHUNK);
-      const { error } = await supabase
-        .from("person_details_private")
-        .insert(chunk);
+      const chunk: PersonPrivateDetailsInsert[] = privateDetails.slice(i, i + CHUNK);
+      const { error } = await privateDetailsTable.insert(chunk);
       if (error)
         return {
           error: `Lỗi khi import person_details_private (chunk ${i / CHUNK + 1}): ${error.message}`,
@@ -359,13 +383,13 @@ export async function importData(
 
   // 8. Insert custom_events (if present in payload, strip created_by)
   let customEventsCount = 0;
-  const customEvents = (importPayload.custom_events ?? []).map(
+  const customEvents: CustomEventInsert[] = (importPayload.custom_events ?? []).map(
     sanitizeCustomEvent,
   );
   if (customEvents.length > 0) {
     for (let i = 0; i < customEvents.length; i += CHUNK) {
       const chunk = customEvents.slice(i, i + CHUNK);
-      const { error } = await supabase.from("custom_events").insert(chunk);
+      const { error } = await customEventsTable.insert(chunk);
       if (error)
         return {
           error: `Lỗi khi import custom_events (chunk ${i / CHUNK + 1}): ${error.message}`,

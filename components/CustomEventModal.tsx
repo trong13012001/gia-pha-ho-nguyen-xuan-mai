@@ -1,7 +1,11 @@
 "use client";
 
 import { CustomEventRecord } from "@/utils/eventHelpers";
-import { createClient } from "@/utils/supabase/client";
+import {
+  useCreateCustomEventMutation,
+  useDeleteCustomEventMutation,
+  useUpdateCustomEventMutation,
+} from "@/hooks/queries/mutations/useCustomEventMutations";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 import {
   AlertCircle,
@@ -29,7 +33,6 @@ export default function CustomEventModal({
   onSuccess,
   eventToEdit,
 }: CustomEventModalProps) {
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState(eventToEdit?.name || "");
@@ -45,6 +48,13 @@ export default function CustomEventModal({
   const [lunarConvertError, setLunarConvertError] = useState<string | null>(
     null,
   );
+  const { mutateAsync: createCustomEventMutation, isPending: isCreatingEvent } =
+    useCreateCustomEventMutation();
+  const { mutateAsync: updateCustomEventMutation, isPending: isUpdatingEvent } =
+    useUpdateCustomEventMutation();
+  const { mutateAsync: deleteCustomEventMutation, isPending: isDeletingEvent } =
+    useDeleteCustomEventMutation();
+  const isPending = isCreatingEvent || isUpdatingEvent || isDeletingEvent;
 
   useEffect(() => {
     if (isOpen) {
@@ -114,11 +124,9 @@ export default function CustomEventModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
     try {
-      const supabase = createClient();
       const payload = {
         name,
         event_date: eventDate,
@@ -126,21 +134,11 @@ export default function CustomEventModal({
         content: content || null,
       };
 
-      let resultError;
       if (eventToEdit) {
-        const { error: err } = await supabase
-          .from("custom_events")
-          .update(payload)
-          .eq("id", eventToEdit.id);
-        resultError = err;
+        await updateCustomEventMutation({ id: eventToEdit.id, payload });
       } else {
-        const { error: err } = await supabase
-          .from("custom_events")
-          .insert([payload]);
-        resultError = err;
+        await createCustomEventMutation(payload);
       }
-
-      if (resultError) throw resultError;
 
       onSuccess();
       onClose();
@@ -151,8 +149,6 @@ export default function CustomEventModal({
       } else {
         setError("Đã xảy ra lỗi khi lưu sự kiện.");
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -160,16 +156,9 @@ export default function CustomEventModal({
     if (!eventToEdit) return;
     if (!window.confirm("Bạn có chắc chắn muốn xoá sự kiện này?")) return;
 
-    setLoading(true);
     setError(null);
     try {
-      const supabase = createClient();
-      const { error: err } = await supabase
-        .from("custom_events")
-        .delete()
-        .eq("id", eventToEdit.id);
-
-      if (err) throw err;
+      await deleteCustomEventMutation(eventToEdit.id);
 
       onSuccess();
       onClose();
@@ -180,8 +169,6 @@ export default function CustomEventModal({
       } else {
         setError("Đã xảy ra lỗi khi xoá sự kiện.");
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -414,7 +401,7 @@ export default function CustomEventModal({
                     <button
                       type="button"
                       onClick={handleDelete}
-                      disabled={loading}
+                      disabled={isPending}
                       className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors disabled:opacity-50 border border-rose-200/50"
                     >
                       Xoá sự kiện
@@ -427,18 +414,18 @@ export default function CustomEventModal({
                     <button
                       type="button"
                       onClick={onClose}
-                      disabled={loading}
+                      disabled={isPending}
                       className="btn"
                     >
                       Huỷ bỏ
                     </button>
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={isPending}
                       className="btn-primary"
                     >
-                      {loading && <Loader2 className="size-4 animate-spin" />}
-                      {loading ? "Đang lưu..." : "Lưu sự kiện"}
+                      {isPending && <Loader2 className="size-4 animate-spin" />}
+                      {isPending ? "Đang lưu..." : "Lưu sự kiện"}
                     </button>
                   </div>
                 </motion.div>

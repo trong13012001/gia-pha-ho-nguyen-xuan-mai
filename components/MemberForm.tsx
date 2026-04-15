@@ -1,6 +1,24 @@
 "use client";
 
 import { Gender, Person } from "@/types";
+import {
+  useCreatePersonMutation,
+  useUpdatePersonMutation,
+} from "@/hooks/mutations/usePersonMutations";
+import {
+  deletePersonPrivateDetails,
+  PersonPrivateDetails,
+  PersonWritePayload,
+  upsertPersonPrivateDetails,
+} from "@/services/supabase/person.service";
+import { useMutation } from "@tanstack/react-query";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  isValidDateParts,
+  memberFormSchema,
+  MemberFormSchemaInput,
+  toNullableNumber,
+} from "@/zod/member-form.schema";
 import { createClient } from "@/utils/supabase/client";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 import {
@@ -17,6 +35,13 @@ import {
 } from "lucide-react";
 import { Lunar, Solar } from "lunar-javascript";
 import { useRouter } from "next/navigation";
+import {
+  Path,
+  PathValue,
+  SubmitErrorHandler,
+  useForm,
+  useWatch,
+} from "react-hook-form";
 import { useState } from "react";
 
 interface MemberFormProps {
@@ -38,74 +63,96 @@ export default function MemberForm({
 }: MemberFormProps) {
   const router = useRouter();
   const supabase = createClient();
-  const [loading, setLoading] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Form states
-  const [fullName, setFullName] = useState(initialData?.full_name || "");
-  const [otherNames, setOtherNames] = useState(initialData?.other_names || "");
-  const [gender, setGender] = useState<Gender>(initialData?.gender || "male");
-  const [birthYear, setBirthYear] = useState<number | "">(
-    initialData?.birth_year || "",
-  );
-  const [birthMonth, setBirthMonth] = useState<number | "">(
-    initialData?.birth_month || "",
-  );
-  const [birthDay, setBirthDay] = useState<number | "">(
-    initialData?.birth_day || "",
-  );
-
-  const [deathYear, setDeathYear] = useState<number | "">(
-    initialData?.death_year || "",
-  );
-  const [deathMonth, setDeathMonth] = useState<number | "">(
-    initialData?.death_month || "",
-  );
-  const [deathDay, setDeathDay] = useState<number | "">(
-    initialData?.death_day || "",
-  );
-
-  const [deathLunarYear, setDeathLunarYear] = useState<number | "">(
-    initialData?.death_lunar_year || "",
-  );
-  const [deathLunarMonth, setDeathLunarMonth] = useState<number | "">(
-    initialData?.death_lunar_month || "",
-  );
-  const [deathLunarDay, setDeathLunarDay] = useState<number | "">(
-    initialData?.death_lunar_day || "",
-  );
-
-  const [isDeceased, setIsDeceased] = useState<boolean>(
-    initialData?.is_deceased || false,
-  );
-  const [isInLaw, setIsInLaw] = useState<boolean>(
-    initialData?.is_in_law || false,
-  );
-
-  const [birthOrder, setBirthOrder] = useState<number | "">(
-    initialData?.birth_order || "",
-  );
-  const [generation, setGeneration] = useState<number | "">(
-    initialData?.generation || "",
-  );
-
-  const [avatarUrl, setAvatarUrl] = useState(initialData?.avatar_url || "");
+  const { mutateAsync: createPersonMutation, isPending: isCreatingPerson } =
+    useCreatePersonMutation();
+  const { mutateAsync: updatePersonMutation, isPending: isUpdatingPerson } =
+    useUpdatePersonMutation();
+  const { mutateAsync: upsertPersonPrivateMutation, isPending: isUpsertingPrivate } =
+    useMutation({
+      mutationFn: async (payload: PersonPrivateDetails) =>
+        upsertPersonPrivateDetails(payload),
+    });
+  const { mutateAsync: deletePersonPrivateMutation, isPending: isDeletingPrivate } =
+    useMutation({
+      mutationFn: async (personId: string) => deletePersonPrivateDetails(personId),
+    });
+  const isPending =
+    isCreatingPerson ||
+    isUpdatingPerson ||
+    isUpsertingPrivate ||
+    isDeletingPrivate ||
+    isUploadingAvatar;
+  const { handleSubmit: handleFormSubmit, setValue, control, register } =
+    useForm<MemberFormSchemaInput>({
+      resolver: zodResolver(memberFormSchema),
+      defaultValues: {
+        fullName: initialData?.full_name || "",
+        otherNames: initialData?.other_names || "",
+        gender: initialData?.gender || "male",
+        birthYear: initialData?.birth_year ?? "",
+        birthMonth: initialData?.birth_month ?? "",
+        birthDay: initialData?.birth_day ?? "",
+        deathYear: initialData?.death_year ?? "",
+        deathMonth: initialData?.death_month ?? "",
+        deathDay: initialData?.death_day ?? "",
+        deathLunarYear: initialData?.death_lunar_year ?? "",
+        deathLunarMonth: initialData?.death_lunar_month ?? "",
+        deathLunarDay: initialData?.death_lunar_day ?? "",
+        isDeceased: initialData?.is_deceased || false,
+        isInLaw: initialData?.is_in_law || false,
+        birthOrder: initialData?.birth_order ?? "",
+        generation: initialData?.generation ?? "",
+        avatarUrl: initialData?.avatar_url || "",
+        note: initialData?.note || "",
+        phoneNumber: initialData?.phone_number ?? "",
+        occupation: initialData?.occupation ?? "",
+        currentResidence: initialData?.current_residence ?? "",
+      },
+    });
+  const formValues = useWatch({ control });
+  const {
+    fullName = "",
+    otherNames = "",
+    gender = "male",
+    birthYear = "",
+    birthMonth = "",
+    birthDay = "",
+    deathYear = "",
+    deathMonth = "",
+    deathDay = "",
+    deathLunarYear = "",
+    deathLunarMonth = "",
+    deathLunarDay = "",
+    isDeceased = false,
+    isInLaw = false,
+    birthOrder = "",
+    generation = "",
+    avatarUrl = "",
+    note = "",
+    phoneNumber = "",
+    occupation = "",
+    currentResidence = "",
+  } = formValues;
+  const setField = <K extends Path<MemberFormSchemaInput>>(
+    name: K,
+    value: PathValue<MemberFormSchemaInput, K>,
+  ) => {
+    setValue(name, value, { shouldDirty: true });
+  };
+  const setDeathYear = (value: number | "") => setField("deathYear", value);
+  const setDeathMonth = (value: number | "") => setField("deathMonth", value);
+  const setDeathDay = (value: number | "") => setField("deathDay", value);
+  const setDeathLunarYear = (value: number | "") =>
+    setField("deathLunarYear", value);
+  const setDeathLunarMonth = (value: number | "") =>
+    setField("deathLunarMonth", value);
+  const setDeathLunarDay = (value: number | "") => setField("deathLunarDay", value);
+  const setAvatarUrl = (value: string) => setField("avatarUrl", value);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     initialData?.avatar_url || null,
-  );
-
-  const [note, setNote] = useState(initialData?.note || "");
-
-  // Private fields
-  const [phoneNumber, setPhoneNumber] = useState(
-    initialData?.phone_number ?? "",
-  );
-  const [occupation, setOccupation] = useState(
-    initialData?.occupation ?? "",
-  );
-  const [currentResidence, setCurrentResidence] = useState(
-    initialData?.current_residence ?? "",
   );
 
   const slugify = (str: string) => {
@@ -125,9 +172,9 @@ export default function MemberForm({
     val: string,
   ) => {
     const num = val ? Number(val) : "";
-    let d = deathDay;
-    let m = deathMonth;
-    let y = deathYear;
+    let d = deathDay ?? "";
+    let m = deathMonth ?? "";
+    let y = deathYear ?? "";
 
     if (field === "day") {
       d = num;
@@ -158,9 +205,9 @@ export default function MemberForm({
     val: string,
   ) => {
     const num = val ? Number(val) : "";
-    let d = deathLunarDay;
-    let m = deathLunarMonth;
-    let y = deathLunarYear;
+    let d = deathLunarDay ?? "";
+    let m = deathLunarMonth ?? "";
+    let y = deathLunarYear ?? "";
 
     if (field === "day") {
       d = num;
@@ -186,41 +233,20 @@ export default function MemberForm({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const onInvalidSubmit: SubmitErrorHandler<MemberFormSchemaInput> = (formErrors) => {
+    const firstError = Object.values(formErrors)[0];
+    setError(firstError?.message ?? "Dữ liệu không hợp lệ.");
+  };
+
+  const onValidSubmit = async () => {
     setError(null);
 
-    // Validation
-    const isValidDate = (
-      day: number | "",
-      month: number | "",
-      year: number | "",
-    ) => {
-      if (day !== "" && (day < 1 || day > 31)) return false;
-      if (month !== "" && (month < 1 || month > 12)) return false;
-      if (year !== "" && year < 1) return false;
-
-      if (day !== "" && month !== "") {
-        const currentYear = year !== "" ? year : 2000;
-        const daysInMonth = new Date(currentYear, month, 0).getDate();
-        if (day > daysInMonth) return false;
-      }
-      return true;
-    };
-
-    if (!isValidDate(birthDay, birthMonth, birthYear)) {
-      setError("Ngày sinh không hợp lệ. Vui lòng kiểm tra lại.");
-      setLoading(false);
-      return;
-    }
-
-    let finalDeathDay = deathDay;
-    let finalDeathMonth = deathMonth;
-    let finalDeathYear = deathYear;
-    let finalDeathLunarDay = deathLunarDay;
-    let finalDeathLunarMonth = deathLunarMonth;
-    let finalDeathLunarYear = deathLunarYear;
+    let finalDeathDay: number | "" = deathDay ?? "";
+    let finalDeathMonth: number | "" = deathMonth ?? "";
+    let finalDeathYear: number | "" = deathYear ?? "";
+    let finalDeathLunarDay: number | "" = deathLunarDay ?? "";
+    let finalDeathLunarMonth: number | "" = deathLunarMonth ?? "";
+    let finalDeathLunarYear: number | "" = deathLunarYear ?? "";
 
     if (
       isDeceased &&
@@ -230,10 +256,13 @@ export default function MemberForm({
       (deathDay === "" || deathMonth === "" || deathYear === "")
     ) {
       try {
+        const lunarYear = Number(deathLunarYear);
+        const lunarMonth = Number(deathLunarMonth);
+        const lunarDay = Number(deathLunarDay);
         const lunarDate = Lunar.fromYmd(
-          deathLunarYear,
-          deathLunarMonth,
-          deathLunarDay,
+          lunarYear,
+          lunarMonth,
+          lunarDay,
         );
         const solarDate = lunarDate.getSolar();
         finalDeathDay = solarDate.getDay();
@@ -241,7 +270,6 @@ export default function MemberForm({
         finalDeathYear = solarDate.getYear();
       } catch {
         setError("Ngày âm lịch không hợp lệ. Vui lòng kiểm tra lại.");
-        setLoading(false);
         return;
       }
     } else if (
@@ -253,7 +281,10 @@ export default function MemberForm({
     ) {
       // Sync from Solar back to Lunar
       try {
-        const solarDate = Solar.fromYmd(deathYear, deathMonth, deathDay);
+        const solarYear = Number(deathYear);
+        const solarMonth = Number(deathMonth);
+        const solarDay = Number(deathDay);
+        const solarDate = Solar.fromYmd(solarYear, solarMonth, solarDay);
         const lunarDate = solarDate.getLunar();
         finalDeathLunarDay = lunarDate.getDay();
         finalDeathLunarMonth = Math.abs(lunarDate.getMonth());
@@ -273,10 +304,13 @@ export default function MemberForm({
 
     if (
       isDeceased &&
-      !isValidDate(finalDeathDay, finalDeathMonth, finalDeathYear)
+      !isValidDateParts(
+        toNullableNumber(finalDeathDay ?? ""),
+        toNullableNumber(finalDeathMonth ?? ""),
+        toNullableNumber(finalDeathYear ?? ""),
+      )
     ) {
       setError("Ngày mất không hợp lệ. Vui lòng kiểm tra lại.");
-      setLoading(false);
       return;
     }
 
@@ -287,7 +321,6 @@ export default function MemberForm({
       finalDeathYear < birthYear
     ) {
       setError("Năm mất phải lớn hơn hoặc bằng năm sinh.");
-      setLoading(false);
       return;
     }
 
@@ -295,7 +328,7 @@ export default function MemberForm({
       let currentAvatarUrl = avatarUrl;
 
       // Update person data helper to avoid duplication
-      const getPersonData = (url: string | null) => ({
+      const getPersonData = (url: string | null): PersonWritePayload => ({
         full_name: fullName,
         gender,
         birth_year: birthYear === "" ? null : Number(birthYear),
@@ -332,52 +365,51 @@ export default function MemberForm({
 
       // For a new member, we must insert first to get the ID for the avatar filename
       if (!isEditing || !currentPersonId) {
-        const { data: newPerson, error: createError } = await supabase
-          .from("persons")
-          .insert(getPersonData(currentAvatarUrl || null))
-          .select()
-          .single();
-        if (createError) throw createError;
+        const newPerson = await createPersonMutation(
+          getPersonData(currentAvatarUrl || null),
+        );
         currentPersonId = newPerson.id;
       } else {
-        // Update existing member info first
-        const { error: updateError } = await supabase
-          .from("persons")
-          .update(getPersonData(currentAvatarUrl || null))
-          .eq("id", currentPersonId);
-        if (updateError) throw updateError;
+        await updatePersonMutation({
+          id: currentPersonId,
+          payload: getPersonData(currentAvatarUrl || null),
+        });
       }
 
       // 2. Handle Avatar Upload if a new file is selected (now we have currentPersonId)
       if (avatarFile && currentPersonId) {
-        const fileExt = avatarFile.name.split(".").pop();
-        const slugName = slugify(fullName);
-        const fileName = `${currentPersonId}_${slugName}.${fileExt}`;
-        const filePath = `${fileName}`;
+        setIsUploadingAvatar(true);
+        try {
+          const fileExt = avatarFile.name.split(".").pop();
+          const slugName = slugify(fullName || "member");
+          const fileName = `${currentPersonId}_${slugName}.${fileExt}`;
+          const filePath = `${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(filePath, avatarFile, { upsert: true });
+          const { error: uploadError } = await supabase.storage
+            .from("avatars")
+            .upload(filePath, avatarFile, { upsert: true });
 
-        if (uploadError) throw uploadError;
+          if (uploadError) throw uploadError;
 
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("avatars").getPublicUrl(filePath);
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
-        currentAvatarUrl = publicUrl;
+          currentAvatarUrl = publicUrl;
 
-        // Update the person with the final avatar URL
-        const { error: updateAvatarError } = await supabase
-          .from("persons")
-          .update({ avatar_url: currentAvatarUrl })
-          .eq("id", currentPersonId);
-        if (updateAvatarError) throw updateAvatarError;
+          // Update the person with the final avatar URL
+          await updatePersonMutation({
+            id: currentPersonId,
+            payload: { avatar_url: currentAvatarUrl },
+          });
+        } finally {
+          setIsUploadingAvatar(false);
+        }
       }
 
       // 3. Upsert private data (only if admin and currentPersonId exists)
       if (isAdmin && currentPersonId) {
-        const normalizedData = {
+        const normalizedData: PersonPrivateDetails = {
           person_id: currentPersonId,
           phone_number: phoneNumber?.trim() || null,
           occupation: occupation?.trim() || null,
@@ -390,18 +422,9 @@ export default function MemberForm({
           normalizedData.current_residence;
 
         if (hasData) {
-          const { error } = await supabase
-            .from("person_details_private")
-            .upsert(normalizedData);
-
-          if (error) throw error;
+          await upsertPersonPrivateMutation(normalizedData);
         } else {
-          const { error } = await supabase
-            .from("person_details_private")
-            .delete()
-            .eq("person_id", currentPersonId);
-
-          if (error) throw error;
+          await deletePersonPrivateMutation(currentPersonId);
         }
       }
       // After save: use callback if provided, otherwise fall back to page navigation
@@ -416,8 +439,6 @@ export default function MemberForm({
     } catch (err) {
       console.error("Error saving member:", err);
       setError((err as Error).message || "Failed to save member");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -434,7 +455,10 @@ export default function MemberForm({
     "bg-white text-stone-900 placeholder-stone-500 block w-full rounded-xl border border-stone-300 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+    <form
+      onSubmit={handleFormSubmit(onValidSubmit, onInvalidSubmit)}
+      className="space-y-6 sm:space-y-8"
+    >
       <motion.div
         variants={formSectionVariants}
         initial="hidden"
@@ -452,9 +476,7 @@ export default function MemberForm({
             </label>
             <input
               type="text"
-              required
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              {...register("fullName")}
               className={inputClasses}
               placeholder="Nhập họ và tên..."
             />
@@ -466,8 +488,7 @@ export default function MemberForm({
             </label>
             <input
               type="text"
-              value={otherNames}
-              onChange={(e) => setOtherNames(e.target.value)}
+              {...register("otherNames")}
               className={inputClasses}
               placeholder="Nickname, tên thánh, bí danh..."
             />
@@ -480,7 +501,11 @@ export default function MemberForm({
             <div className="relative">
               <select
                 value={gender}
-                onChange={(e) => setGender(e.target.value as Gender)}
+                onChange={(e) =>
+                  setValue("gender", e.target.value as Gender, {
+                    shouldDirty: true,
+                  })
+                }
                 className={`${inputClasses} appearance-none`}
               >
                 <option value="male">Nam</option>
@@ -499,7 +524,9 @@ export default function MemberForm({
                 <input
                   type="checkbox"
                   checked={isInLaw}
-                  onChange={(e) => setIsInLaw(e.target.checked)}
+                  onChange={(e) =>
+                    setValue("isInLaw", e.target.checked, { shouldDirty: true })
+                  }
                   className="peer sr-only"
                 />
                 <div className="size-5 border-2 border-stone-300 rounded peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-colors flex items-center justify-center">
@@ -537,10 +564,9 @@ export default function MemberForm({
               type="number"
               min="1"
               placeholder="Ví dụ: 1 (con trưởng), 2 (con thứ hai)..."
-              value={birthOrder}
-              onChange={(e) =>
-                setBirthOrder(e.target.value ? Number(e.target.value) : "")
-              }
+              {...register("birthOrder", {
+                setValueAs: (value: string) => (value ? Number(value) : ""),
+              })}
               className={inputClasses}
             />
             <p className="mt-1.5 text-xs text-stone-400 flex items-center gap-1">
@@ -556,10 +582,9 @@ export default function MemberForm({
               type="number"
               min="1"
               placeholder="Ví dụ: 1, 2, 3..."
-              value={generation}
-              onChange={(e) =>
-                setGeneration(e.target.value ? Number(e.target.value) : "")
-              }
+              {...register("generation", {
+                setValueAs: (value: string) => (value ? Number(value) : ""),
+              })}
               className={inputClasses}
             />
             <p className="mt-1.5 text-xs text-stone-400 flex items-center gap-1">
@@ -677,7 +702,9 @@ export default function MemberForm({
                 max="31"
                 value={birthDay}
                 onChange={(e) =>
-                  setBirthDay(e.target.value ? Number(e.target.value) : "")
+                  setValue("birthDay", e.target.value ? Number(e.target.value) : "", {
+                    shouldDirty: true,
+                  })
                 }
                 className={inputClasses}
               />
@@ -688,7 +715,11 @@ export default function MemberForm({
                 max="12"
                 value={birthMonth}
                 onChange={(e) =>
-                  setBirthMonth(e.target.value ? Number(e.target.value) : "")
+                  setValue(
+                    "birthMonth",
+                    e.target.value ? Number(e.target.value) : "",
+                    { shouldDirty: true },
+                  )
                 }
                 className={inputClasses}
               />
@@ -697,7 +728,9 @@ export default function MemberForm({
                 placeholder="Năm"
                 value={birthYear}
                 onChange={(e) =>
-                  setBirthYear(e.target.value ? Number(e.target.value) : "")
+                  setValue("birthYear", e.target.value ? Number(e.target.value) : "", {
+                    shouldDirty: true,
+                  })
                 }
                 className={inputClasses}
               />
@@ -712,14 +745,14 @@ export default function MemberForm({
                     type="checkbox"
                     checked={isDeceased}
                     onChange={(e) => {
-                      setIsDeceased(e.target.checked);
+                      setValue("isDeceased", e.target.checked, { shouldDirty: true });
                       if (!e.target.checked) {
-                        setDeathYear("");
-                        setDeathMonth("");
-                        setDeathDay("");
-                        setDeathLunarYear("");
-                        setDeathLunarMonth("");
-                        setDeathLunarDay("");
+                        setValue("deathYear", "", { shouldDirty: true });
+                        setValue("deathMonth", "", { shouldDirty: true });
+                        setValue("deathDay", "", { shouldDirty: true });
+                        setValue("deathLunarYear", "", { shouldDirty: true });
+                        setValue("deathLunarMonth", "", { shouldDirty: true });
+                        setValue("deathLunarDay", "", { shouldDirty: true });
                       }
                     }}
                     className="peer sr-only"
@@ -856,8 +889,7 @@ export default function MemberForm({
             </label>
             <textarea
               rows={3}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
+              {...register("note")}
               placeholder="Thêm thông tin bổ sung, tiểu sử..."
               className={`${inputClasses} resize-none`}
             />
@@ -893,8 +925,7 @@ export default function MemberForm({
               </label>
               <input
                 type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
+                {...register("phoneNumber")}
                 disabled={isDeceased}
                 placeholder="Ví dụ: 0912345678"
                 className={`${inputClasses} disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed`}
@@ -913,8 +944,7 @@ export default function MemberForm({
               </label>
               <input
                 type="text"
-                value={occupation}
-                onChange={(e) => setOccupation(e.target.value)}
+                {...register("occupation")}
                 placeholder="Ví dụ: Kỹ sư, Bác sĩ..."
                 className={inputClasses}
               />
@@ -926,8 +956,7 @@ export default function MemberForm({
               </label>
               <input
                 type="text"
-                value={currentResidence}
-                onChange={(e) => setCurrentResidence(e.target.value)}
+                {...register("currentResidence")}
                 placeholder="Địa chỉ cư trú..."
                 className={inputClasses}
               />
@@ -964,9 +993,9 @@ export default function MemberForm({
         >
           Hủy bỏ
         </button>
-        <button type="submit" disabled={loading} className="btn-primary">
-          {loading && <Loader2 className="size-4 animate-spin" />}
-          {loading
+        <button type="submit" disabled={isPending} className="btn-primary">
+          {isPending && <Loader2 className="size-4 animate-spin" />}
+          {isPending
             ? "Đang lưu..."
             : isEditing
               ? "Lưu thay đổi"

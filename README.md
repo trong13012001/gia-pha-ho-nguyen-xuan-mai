@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/homielab/giapha-os/main/public/icon.png" alt="Gia Phả OS Icon" width="100" height="100" style="border-radius: 22%; border: 0.5px solid rgba(0,0,0,0.1);" />
+  <img src="https://raw.githubusercontent.com/homielab/giapha-os/main/public/icon.png" alt="Gia Phả họ Nguyễn - Xuân Mai Icon" width="100" height="100" style="border-radius: 22%; border: 0.5px solid rgba(0,0,0,0.1);" />
 </p>
 
-# Gia Phả OS (Gia Phả Open Source)
+# Gia Phả họ Nguyễn - Xuân Mai (Gia Phả Open Source)
 
 Đây là mã nguồn mở cho ứng dụng quản lý gia phả dòng họ, cung cấp giao diện trực quan để xem sơ đồ phả hệ, quản lý thành viên và tìm kiếm danh xưng.
 
@@ -16,8 +16,8 @@ Phù hợp với người Việt Nam.
 - [Demo](#demo)
 - [Hình ảnh Giao diện](#hình-ảnh-giao-diện)
 - [Cài đặt và Chạy dự án](#cài-đặt-và-chạy-dự-án)
-  - [Cách 1: Deploy nhanh lên Vercel](#cách-1-deploy-nhanh-lên-vercel)
-  - [Cách 2: Chạy trên máy cá nhân](#cách-2-chạy-trên-máy-cá-nhân)
+    - [Cách 1: Deploy nhanh lên Vercel](#cách-1-deploy-nhanh-lên-vercel)
+    - [Cách 2: Chạy trên máy cá nhân](#cách-2-chạy-trên-máy-cá-nhân)
 - [Tài khoản đầu tiên](#tài-khoản-đầu-tiên)
 - [Xử lý lỗi khi đăng ký](#xử-lý-lỗi-khi-đăng-ký)
 - [Phân quyền người dùng (User Roles)](#phân-quyền-người-dùng-user-roles)
@@ -72,8 +72,8 @@ Chỉ cần khoảng 10 -> 15 phút là bạn có thể tự dựng hệ thống
 2. Tạo tài khoản miễn phí tại https://supabase.com nếu chưa có (khuyên dùng đăng ký bằng tài khoản GitHub cho nhanh).
 3. Tạo **New Project**. Đợi khoảng 1 -> 2 phút để hệ thống khởi tạo xong.
 4. Vào **Project Settings → API**, giữ lại 2 giá trị này để dùng ở bước tiếp theo:
-   - `Project URL`
-   - `Project API Keys`
+    - `Project URL`
+    - `Project API Keys`
 
 ---
 
@@ -84,8 +84,8 @@ Chỉ cần khoảng 10 -> 15 phút là bạn có thể tự dựng hệ thống
 1. Tạo tài khoản miễn phí tại https://vercel.com nếu chưa có (khuyên dùng đăng ký bằng tài khoản GitHub cho nhanh).
 2. Nhấn nút Deploy bên trên.
 3. Điền các biến môi trường đã lưu ở **bước 1**:
-   - `NEXT_PUBLIC_SUPABASE_URL` = `Project URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` = `Project API Keys`
+    - `NEXT_PUBLIC_SUPABASE_URL` = `Project URL`
+    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` = `Project API Keys`
 4. Nhấn **Deploy** và chờ 2 -> 3 phút.
 
 Bạn sẽ có một đường link website để sử dụng ngay.
@@ -138,11 +138,11 @@ Sau khi cài đặt xong, nếu bạn gặp lỗi `Failed to fetch` khi đăng k
 1. Vào [Supabase Dashboard](https://supabase.com/dashboard) → chọn Project của bạn.
 2. Vào **Authentication → URL Configuration**.
 3. Ở mục **Site URL**, điền URL chính của ứng dụng, ví dụ:
-   - Vercel: `https://giapha-os.vercel.app`
-   - Máy cá nhân: `http://localhost:3000`
+    - Vercel: `https://giapha-os.vercel.app`
+    - Máy cá nhân: `http://localhost:3000`
 4. Ở mục **Redirect URLs**, nhấn **Add URL** và thêm:
-   - `https://giapha-os.vercel.app/**`
-   - `http://localhost:3000/**` (nếu chạy local)
+    - `https://giapha-os.vercel.app/**`
+    - `http://localhost:3000/**` (nếu chạy local)
 5. Nhấn **Save** và thử lại.
 
 > **Lưu ý:** Thay `giapha-os.vercel.app` bằng domain thực tế của bạn. Nếu dùng domain tùy chỉnh, hãy thêm cả domain đó vào danh sách.
