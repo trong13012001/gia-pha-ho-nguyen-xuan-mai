@@ -11,6 +11,7 @@ import {
   AlignLeft,
   Cake,
   CalendarDays,
+  CandlestickChart,
   Clock,
   Flower,
   MapPin,
@@ -71,6 +72,8 @@ function EventCard({
 }) {
   const isBirthday = event.type === "birthday";
   const isCustom = event.type === "custom_event";
+  const isMemorial =
+    event.type === "memorial_49" || event.type === "memorial_100";
   const isToday = event.daysUntil === 0;
   const isPast = event.daysUntil < 0;
   const isSoon = event.daysUntil > 0 && event.daysUntil <= 7;
@@ -93,6 +96,9 @@ function EventCard({
     if (diff <= 0) return null;
     if (isBirthday) return `${diff} tuổi`;
     if (event.type === "death_anniversary") return `${diff} năm`;
+    if (isMemorial) {
+      return event.type === "memorial_49" ? "Lễ 49 ngày" : "Lễ 100 ngày";
+    }
     return null;
   })();
 
@@ -119,6 +125,9 @@ function EventCard({
     if (event.type === "death_anniversary") {
       label += ` (Âm lịch: ${event.eventDateLabel.replace(" ÂL", "")})`;
     }
+    if (isMemorial) {
+      label += ` · ${event.eventDateLabel}`;
+    }
     return label;
   })();
 
@@ -137,7 +146,9 @@ function EventCard({
               ? "bg-white/80 border-stone-200/60 hover:border-blue-200"
               : isCustom
                 ? "bg-white/80 border-stone-200/60 hover:border-purple-200"
-                : "bg-white/80 border-stone-200/60 hover:border-rose-200"
+                : isMemorial
+                  ? "bg-amber-50/80 border-amber-200/60 hover:border-amber-300"
+                  : "bg-white/80 border-stone-200/60 hover:border-rose-200"
       }`}
     >
       {/* Icon */}
@@ -151,11 +162,15 @@ function EventCard({
                 ? "bg-blue-50 text-blue-500"
                 : isCustom
                   ? "bg-purple-50 text-purple-500"
-                  : "bg-rose-50 text-rose-500"
+                  : isMemorial
+                    ? "bg-amber-100 text-amber-600"
+                    : "bg-rose-50 text-rose-500"
         }`}
       >
         {isBirthday ? (
           <Cake className="size-[18px] sm:size-5" />
+        ) : isMemorial ? (
+          <CandlestickChart className="size-[18px] sm:size-5" />
         ) : isCustom ? (
           <Star className="size-[18px] sm:size-5" />
         ) : (
@@ -239,7 +254,12 @@ export default function EventsList({
 }: EventsListProps) {
   const router = useRouter();
   const [filter, setFilter] = useState<
-    "all" | "birthday" | "death_anniversary" | "custom_event" | "past"
+    | "all"
+    | "birthday"
+    | "death_anniversary"
+    | "memorial"
+    | "custom_event"
+    | "past"
   >("all");
   const [showCount, setShowCount] = useState(20);
   const [showDeceasedBirthdays, setShowDeceasedBirthdays] = useState(false);
@@ -311,7 +331,15 @@ export default function EventsList({
         .filter((e) => e.daysUntil < 0 && e.daysUntil >= -365)
         .sort((a, b) => b.daysUntil - a.daysUntil); // most recent first
     }
-    if (filter !== "all") {
+    if (filter === "memorial") {
+      result = result.filter(
+        (e) => e.type === "memorial_49" || e.type === "memorial_100",
+      );
+    } else     if (filter === "memorial") {
+      result = result.filter(
+        (e) => e.type === "memorial_49" || e.type === "memorial_100",
+      );
+    } else if (filter !== "all") {
       result = result.filter((e) => e.type === filter);
     }
     if (!showDeceasedBirthdays) {
@@ -399,6 +427,7 @@ export default function EventsList({
               { key: "all", label: "Tất cả" },
               { key: "birthday", label: "Sinh nhật" },
               { key: "death_anniversary", label: "Ngày giỗ" },
+              { key: "memorial", label: "Lễ 49/100 ngày" },
               { key: "custom_event", label: "Tuỳ chỉnh" },
               { key: "past", label: "Đã qua" },
             ] as const

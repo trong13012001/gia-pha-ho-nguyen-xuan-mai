@@ -34,7 +34,8 @@ Phù hợp với người Việt Nam.
 - **Thống kê & Sự kiện**: Theo dõi ngày giỗ và các chỉ số nhân khẩu học của dòng họ.
 - **Sao lưu dữ liệu**: Xuất/nhập file JSON, CSV, GEDCOM để lưu trữ hoặc di chuyển dễ dàng.
 - **Bảo mật**: Phân quyền (Admin, Editor, Member) và bảo vệ dữ liệu bằng Supabase.
-- **Đa thiết bị**: Giao diện hiện đại, tối ưu cho cả máy tính và điện thoại.
+- **Đa thiết bị**: Giao diện web + app mobile Expo (repo riêng).
+- **Lễ 49 / 100 ngày**: Tính từ ngày mất âm lịch; app mobile nhắc local trước 3 ngày và hằng ngày đến ngày lễ.
 
 ## Demo
 

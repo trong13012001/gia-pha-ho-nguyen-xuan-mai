@@ -10,6 +10,7 @@ import {
   BarChart2,
   Cake,
   CalendarDays,
+  CandlestickChart,
   Database,
   Flower2,
   GitMerge,
@@ -17,10 +18,19 @@ import {
   Star,
   Users,
 } from "lucide-react";
+import type { EventType } from "@/utils/eventHelpers";
 import Link from "next/link";
 
 /* ── Event type helpers ───────────────────────────────────────────── */
-const eventTypeConfig = {
+const eventTypeConfig: Record<
+  EventType,
+  {
+    icon: typeof Cake;
+    label: string;
+    color: string;
+    bg: string;
+  }
+> = {
   birthday: {
     icon: Cake,
     label: "Sinh nhật",
@@ -32,6 +42,18 @@ const eventTypeConfig = {
     label: "Ngày giỗ",
     color: "text-purple-600",
     bg: "bg-purple-50",
+  },
+  memorial_49: {
+    icon: CandlestickChart,
+    label: "49 ngày",
+    color: "text-violet-600",
+    bg: "bg-violet-50",
+  },
+  memorial_100: {
+    icon: CandlestickChart,
+    label: "100 ngày",
+    color: "text-violet-600",
+    bg: "bg-violet-50",
   },
   custom_event: {
     icon: Star,
